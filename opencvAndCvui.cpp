@@ -21,6 +21,7 @@
 #define CAMERA_WINDOW_NAME "Opencvui Camera"
 #define VIDEO_WINDOW_NAME "Opencvui Video"
 #define PHOTO_WINDOW_NAME "Opencvui Photo"
+#define MENU_PHOTO_WINDOW_NAME "Opencvui Menu Photo"
 #define ADD_WINDOW_NAME "Opencvui Add Photo"
 
 namespace fs = std::filesystem;
@@ -32,20 +33,22 @@ public:
     cv::Ptr<fc::LBPHFaceRecognizer> model =
         fc::LBPHFaceRecognizer::create();
 
-    cv::Mat guiframe = cv::Mat(300, 250, CV_8UC3);
+    cv::Mat guiframe = cv::Mat(310, 250, CV_8UC3);
     cv::Mat cameraframe = cv::Mat(400, 500, CV_8UC3);
     cv::Mat videoframe = cv::Mat(400, 500, CV_8UC3);
-    //cv::Mat photoframe = cv::Mat(400, 500, CV_8UC3);
+    cv::Mat menuphotoframe = cv::Mat(160, 250, CV_8UC3);
 
     std::vector<std::string> Id;
     std::string pathDataFace = "C:/Source/dataFace/";
     std::string pathDataVideo = "C:/Source/dataVideo/";
+    std::string pathPhoto = "C:/Source/dataImg/";
 
 public:
     void GUI();
     void Camera();
     void Video();
-    void Photo();
+    void MenuPhoto();
+    void Photo(std::string);
     void AddPhoto();
     void TrainnerLBP();
 
@@ -58,17 +61,25 @@ void RecognitionFace::GUI() {
         guiframe = cv::Scalar(49, 52, 49);
         if (cvui::button(guiframe, 10, 10, 230, 40, "Camera")) {
             Camera();
+            GUI();
         }
         if (cvui::button(guiframe, 10, 60, 230, 40, "Video")) {
             Video();
+            GUI();
         }
         if (cvui::button(guiframe, 10, 110, 230, 40, "Photo")) {
-            //Photo();
+            MenuPhoto();
+            GUI();
         }
         if (cvui::button(guiframe, 10, 160, 230, 40, "Add photo")) {
             AddPhoto();
+            GUI();
         }
-        if (cvui::button(guiframe, 10, 250, 230, 40, "Exit")) {
+        if (cvui::button(guiframe, 10, 210, 230, 40, "Learn")) {
+            TrainnerLBP();
+            GUI();
+        }
+        if (cvui::button(guiframe, 10, 260, 230, 40, "Exit")) {
             cv::destroyWindow(MAIN_WINDOW_NAME);
             break;
         }
@@ -98,7 +109,6 @@ void RecognitionFace::Camera() {
 
         int predictedLabel = -1;
         double confidence = 0.0;
-        TrainnerLBP();
         for (int i = 0; i < faces.size(); ++i) {
             model->predict(grayframe, predictedLabel, confidence);
             rectangle(cameraframe, faces[i].tl(), faces[i].br(),
@@ -121,8 +131,6 @@ void RecognitionFace::Camera() {
 void RecognitionFace::Video() {
     for (auto const& buffPath : fs::directory_iterator(pathDataVideo)) {
         std::string filePath = buffPath.path().string();
-        
-        cv::namedWindow(VIDEO_WINDOW_NAME);
         cv::VideoCapture videoCapture(filePath);
         
         while (true) {
@@ -132,13 +140,21 @@ void RecognitionFace::Video() {
                 return;
             }
 
+            cv::Mat grayframe;
+            cv::cvtColor(videoframe, grayframe, cv::COLOR_BGR2GRAY);
             std::vector<cv::Rect> faces;
-            cascadeClassifier.detectMultiScale(videoframe, faces, 1.3, 5);
+            cascadeClassifier.detectMultiScale(grayframe, faces, 1.3, 5);
+
+            int predictedLabel = -1;
+            double confidence = 0.0;
             for (int i = 0; i < faces.size(); ++i) {
-                rectangle(videoframe, faces[i].tl(), faces[i].br(), 
-                          cv::Scalar(50, 50, 255), 3);
-                putText(videoframe, "Unknown", faces[i].tl() + cv::Point(5, 15), 
-                        cv::FONT_HERSHEY_COMPLEX, 0.3, cv::Scalar(50, 50, 255));
+                model->predict(grayframe, predictedLabel, confidence);
+                rectangle(videoframe, faces[i].tl(), faces[i].br(),
+                    cv::Scalar(50, 50, 255), 3);
+                if (confidence >= 70) {
+                    putText(videoframe, std::to_string(predictedLabel) + "   " + std::to_string(confidence), faces[i].tl() +
+                        cv::Point(5, 15), cv::FONT_HERSHEY_COMPLEX, 0.3, cv::Scalar(50, 50, 255));
+                }
             }
 
             cvui::update();
@@ -146,14 +162,75 @@ void RecognitionFace::Video() {
             if (cv::waitKey(20) == 27) {
                 std::cout << "ESC. Close the " << VIDEO_WINDOW_NAME << "!" << std::endl;
                 cv::destroyWindow(VIDEO_WINDOW_NAME);
-                return;
+                break;
             }
         }
     }
 }
-//void RecognationFace::Photo() {
-//
-//}
+void RecognitionFace::MenuPhoto() {
+    cv::namedWindow(MENU_PHOTO_WINDOW_NAME);
+    cvui::init(MENU_PHOTO_WINDOW_NAME);
+
+    while (true) {
+        menuphotoframe = cv::Scalar(49, 52, 49);
+        if (cvui::button(menuphotoframe, 10, 10, 230, 40, "Path to photo")) {
+            cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
+            std::string buf;
+            std::cout << "Path to the photo: ";
+            std::cin >> buf;
+            Photo(buf);
+            break;
+        }
+        if (cvui::button(menuphotoframe, 10, 60, 230, 40, "Use dataset")) {
+            cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
+            for (auto const& buffPath : fs::directory_iterator(pathPhoto)) {
+                std::string buf = buffPath.path().string();
+                std::cout << "Path: " << buf << std::endl;
+                Photo(buf);
+            }
+            break;
+        }
+        if (cvui::button(menuphotoframe, 10, 110, 230, 40, "Exit")) {
+            cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
+            break;
+        }
+
+        cvui::update();
+        cv::imshow(MENU_PHOTO_WINDOW_NAME, menuphotoframe);
+        if (cv::waitKey(20) == 27) {
+            std::cout << "ESC. Exit from " << MENU_PHOTO_WINDOW_NAME << "!" << std::endl;
+            cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
+            break;
+        }
+    }
+}
+void RecognitionFace::Photo(std::string buf) {
+    cv::Mat photoframe = cv::imread(buf);
+    cv::Mat grayframe, resizeframe;
+
+    cv::resize(photoframe, resizeframe, cv::Size(photoframe.cols / 4, photoframe.rows / 4), (0, 0), (0, 0), 3);
+    cv::cvtColor(resizeframe, grayframe, cv::COLOR_BGR2GRAY);
+    std::vector<cv::Rect> faces;
+    cascadeClassifier.detectMultiScale(grayframe, faces, 1.3, 5);
+
+    int predictedLabel = -1;
+    double confidence = 0.0;
+    for (int i = 0; i < faces.size(); ++i) {
+        model->predict(grayframe, predictedLabel, confidence);
+        rectangle(resizeframe, faces[i].tl(), faces[i].br(),
+            cv::Scalar(50, 50, 255), 3);
+        if (confidence >= 70) {
+            putText(resizeframe, std::to_string(predictedLabel) + "   " + std::to_string(confidence), faces[i].tl() +
+                    cv::Point(5, 15), cv::FONT_HERSHEY_COMPLEX, 0.3, cv::Scalar(50, 50, 255));
+        }
+    }
+    
+    cvui::update();
+    cvui::imshow(PHOTO_WINDOW_NAME, resizeframe);
+    cv::waitKey(1000);
+    cv::destroyWindow(PHOTO_WINDOW_NAME);
+    return;
+}
 void RecognitionFace::AddPhoto() {
     cv::VideoCapture videoCapture(0);
     cv::Mat grayframe, bufframe;
@@ -167,7 +244,7 @@ void RecognitionFace::AddPhoto() {
     
     strftime(buffer, 80, "%j%d%M%S", now);
     faceId = buffer;
-    std::cout << faceId << std::endl;
+    std::cout << "ID: " << faceId << std::endl;
 
     while (true) {
         videoCapture.read(cameraframe);
@@ -202,6 +279,7 @@ void RecognitionFace::AddPhoto() {
     }
 }
 void RecognitionFace::TrainnerLBP() {
+    int buf;
     std::vector<int> faceIds;
     std::vector<cv::Mat> faceSamples;
 
@@ -210,9 +288,8 @@ void RecognitionFace::TrainnerLBP() {
         std::string faceIdBuff = filePath.substr(filePath.find(".") + 1, filePath.size());
         std::string faceIdBuff1 = faceIdBuff.erase(faceIdBuff.find("_"), 2);
         std::string faceId = faceIdBuff1.erase(faceIdBuff.find(".jpg"));
-        int buf;
         std::istringstream(faceId) >> buf;
-        std::cout << buf << std::endl;
+        std::cout << "ID: " << buf << std::endl;
 
         cv::Mat srcfaceframe, grayfaceframe;
         srcfaceframe = cv::imread(buffPath.path().string());
@@ -228,6 +305,7 @@ void RecognitionFace::TrainnerLBP() {
 int main() {
     RecognitionFace recognitionface;
     recognitionface.cascadeClassifier.load("xml/haarcascade_frontalface_default.xml");
+    recognitionface.TrainnerLBP();
     recognitionface.GUI();
     return 0;
 }
