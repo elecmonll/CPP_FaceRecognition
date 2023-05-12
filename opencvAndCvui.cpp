@@ -19,9 +19,11 @@
 
 #define MAIN_WINDOW_NAME "Opencvui"
 #define CAMERA_WINDOW_NAME "Opencvui Camera"
+#define MENU_VIDEO_WINDOW_NAME "Opencvui Menu Video"
 #define VIDEO_WINDOW_NAME "Opencvui Video"
-#define PHOTO_WINDOW_NAME "Opencvui Photo"
 #define MENU_PHOTO_WINDOW_NAME "Opencvui Menu Photo"
+#define PHOTO_WINDOW_NAME "Opencvui Photo"
+#define MENU_ADD_WINDOW_NAME "Opencvui Menu Add Photo"
 #define ADD_WINDOW_NAME "Opencvui Add Photo"
 
 namespace fs = std::filesystem;
@@ -37,6 +39,8 @@ public:
     cv::Mat cameraframe = cv::Mat(400, 500, CV_8UC3);
     cv::Mat videoframe = cv::Mat(400, 500, CV_8UC3);
     cv::Mat menuphotoframe = cv::Mat(160, 250, CV_8UC3);
+    cv::Mat menuvideoframe = cv::Mat(160, 250, CV_8UC3);
+    cv::Mat menuaddphotoframe = cv::Mat(210, 250, CV_8UC3);
 
     std::vector<std::string> Id;
     std::string pathDataFace = "C:/Source/dataFace/";
@@ -46,12 +50,13 @@ public:
 public:
     void GUI();
     void Camera();
-    void Video();
+    void MenuVideo();
+    void Video(std::string);
     void MenuPhoto();
     void Photo(std::string);
-    void AddPhoto();
-    void TrainnerLBP();
-
+    void MenuAddPhoto();
+    void AddPhoto(cv::VideoCapture);
+    void TrainnerLBPH();
 };
 void RecognitionFace::GUI() {
     cv::namedWindow(MAIN_WINDOW_NAME);
@@ -59,35 +64,41 @@ void RecognitionFace::GUI() {
 
     while (true) {
         guiframe = cv::Scalar(49, 52, 49);
-        if (cvui::button(guiframe, 10, 10, 230, 40, "Camera")) {
+        if (cvui::button(guiframe, 10, 10, 230, 40, "Camera Recognizer")) {
+            std::cout << "Camera Recognizer!" << std::endl;
             Camera();
             GUI();
         }
-        if (cvui::button(guiframe, 10, 60, 230, 40, "Video")) {
-            Video();
+        if (cvui::button(guiframe, 10, 60, 230, 40, "Video Recognizer")) {
+            std::cout << "Video Recognizer!" << std::endl;
+            MenuVideo();
             GUI();
         }
-        if (cvui::button(guiframe, 10, 110, 230, 40, "Photo")) {
+        if (cvui::button(guiframe, 10, 110, 230, 40, "Photo Recognizer")) {
+            std::cout << "Photo Recognizer!" << std::endl;
             MenuPhoto();
             GUI();
         }
         if (cvui::button(guiframe, 10, 160, 230, 40, "Add photo")) {
-            AddPhoto();
+            std::cout << "Add photo to the photo database!" << std::endl;
+            MenuAddPhoto();
             GUI();
         }
         if (cvui::button(guiframe, 10, 210, 230, 40, "Learn")) {
-            TrainnerLBP();
+            std::cout << "Learn LBPH!" << std::endl;
+            TrainnerLBPH();
             GUI();
         }
         if (cvui::button(guiframe, 10, 260, 230, 40, "Exit")) {
+            std::cout << "Exit from " << MAIN_WINDOW_NAME << "!" << std::endl;
             cv::destroyWindow(MAIN_WINDOW_NAME);
             break;
         }
 
-        cvui::update();
+        cvui::update(MAIN_WINDOW_NAME);
         cv::imshow(MAIN_WINDOW_NAME, guiframe);
         if (cv::waitKey(20) == 27) {
-            std::cout << "ESC. Exit from " << MAIN_WINDOW_NAME << "!" << std::endl;
+            std::cout << "ESC. Close the " << MAIN_WINDOW_NAME << "!" << std::endl;
             cv::destroyWindow(MAIN_WINDOW_NAME);
             break;
         }
@@ -119,7 +130,7 @@ void RecognitionFace::Camera() {
             }
         }
                 
-        cvui::update();
+        cvui::update(CAMERA_WINDOW_NAME);
         cvui::imshow(CAMERA_WINDOW_NAME, cameraframe);
         if (cv::waitKey(20) == 27) {
             std::cout << "ESC. Close the " << CAMERA_WINDOW_NAME << "!" << std::endl;
@@ -128,42 +139,78 @@ void RecognitionFace::Camera() {
         }
     }
 }
-void RecognitionFace::Video() {
-    for (auto const& buffPath : fs::directory_iterator(pathDataVideo)) {
-        std::string filePath = buffPath.path().string();
-        cv::VideoCapture videoCapture(filePath);
-        
-        while (true) {
-            videoCapture.read(videoframe);
-            if (videoframe.empty()) {
-                std::cout << "ERROR! Video disconnected!" << std::endl;
-                return;
-            }
+void RecognitionFace::MenuVideo() {
+    cv::namedWindow(MENU_VIDEO_WINDOW_NAME);
+    cvui::init(MENU_VIDEO_WINDOW_NAME);
 
-            cv::Mat grayframe;
-            cv::cvtColor(videoframe, grayframe, cv::COLOR_BGR2GRAY);
-            std::vector<cv::Rect> faces;
-            cascadeClassifier.detectMultiScale(grayframe, faces, 1.3, 5);
-
-            int predictedLabel = -1;
-            double confidence = 0.0;
-            for (int i = 0; i < faces.size(); ++i) {
-                model->predict(grayframe, predictedLabel, confidence);
-                rectangle(videoframe, faces[i].tl(), faces[i].br(),
-                    cv::Scalar(50, 50, 255), 3);
-                if (confidence >= 70) {
-                    putText(videoframe, std::to_string(predictedLabel) + "   " + std::to_string(confidence), faces[i].tl() +
-                        cv::Point(5, 15), cv::FONT_HERSHEY_COMPLEX, 0.3, cv::Scalar(50, 50, 255));
-                }
+    while (true) {
+        menuvideoframe = cv::Scalar(49, 52, 49);
+        if (cvui::button(menuvideoframe, 10, 10, 230, 40, "Path to the video")) {
+            std::cout << "Path to the video!" << std::endl;
+            cv::destroyWindow(MENU_VIDEO_WINDOW_NAME);
+            std::string buf;
+            std::cout << "Path to the video: ";
+            std::cin >> buf;
+            Video(buf);
+            break;
+        }
+        if (cvui::button(menuvideoframe, 10, 60, 230, 40, "Use video database")) {
+            std::cout << "Use video database!" << std::endl;
+            cv::destroyWindow(MENU_VIDEO_WINDOW_NAME);
+            for (auto const& buffPath : fs::directory_iterator(pathDataVideo)) {
+                std::string buf = buffPath.path().string();
+                std::cout << "Path: " << buf << std::endl;
+                Video(buf);
             }
+            break;
+        }
+        if (cvui::button(menuvideoframe, 10, 110, 230, 40, "Exit")) {
+            std::cout << "Exit from " << MENU_VIDEO_WINDOW_NAME << "!" << std::endl;
+            cv::destroyWindow(MENU_VIDEO_WINDOW_NAME);
+            break;
+        }
 
-            cvui::update();
-            cvui::imshow(VIDEO_WINDOW_NAME, videoframe);
-            if (cv::waitKey(20) == 27) {
-                std::cout << "ESC. Close the " << VIDEO_WINDOW_NAME << "!" << std::endl;
-                cv::destroyWindow(VIDEO_WINDOW_NAME);
-                break;
+        cvui::update(MENU_VIDEO_WINDOW_NAME);
+        cv::imshow(MENU_VIDEO_WINDOW_NAME, menuvideoframe);
+        if (cv::waitKey(20) == 27) {
+            std::cout << "ESC. Close the " << MENU_VIDEO_WINDOW_NAME << "!" << std::endl;
+            cv::destroyWindow(MENU_VIDEO_WINDOW_NAME);
+            break;
+        }
+    }
+}
+void RecognitionFace::Video(std::string buf) {
+    cv::VideoCapture videoCapture(buf);
+    while (true) {
+        videoCapture.read(videoframe);
+        if (videoframe.empty()) {
+            std::cout << "ERROR! Video disconnected!" << std::endl;
+            return;
+        }
+
+        cv::Mat grayframe;
+        cv::cvtColor(videoframe, grayframe, cv::COLOR_BGR2GRAY);
+        std::vector<cv::Rect> faces;
+        cascadeClassifier.detectMultiScale(grayframe, faces, 1.3, 5);
+
+        int predictedLabel = -1;
+        double confidence = 0.0;
+        for (int i = 0; i < faces.size(); ++i) {
+            model->predict(grayframe, predictedLabel, confidence);
+            rectangle(videoframe, faces[i].tl(), faces[i].br(),
+                cv::Scalar(50, 50, 255), 3);
+            if (confidence >= 70) {
+                putText(videoframe, std::to_string(predictedLabel) + "   " + std::to_string(confidence), faces[i].tl() +
+                    cv::Point(5, 15), cv::FONT_HERSHEY_COMPLEX, 0.3, cv::Scalar(50, 50, 255));
             }
+        }
+
+        cvui::update(VIDEO_WINDOW_NAME);
+        cvui::imshow(VIDEO_WINDOW_NAME, videoframe);
+        if (cv::waitKey(20) == 27) {
+            std::cout << "ESC. Close the " << VIDEO_WINDOW_NAME << "!" << std::endl;
+            cv::destroyWindow(VIDEO_WINDOW_NAME);
+            break;
         }
     }
 }
@@ -173,7 +220,8 @@ void RecognitionFace::MenuPhoto() {
 
     while (true) {
         menuphotoframe = cv::Scalar(49, 52, 49);
-        if (cvui::button(menuphotoframe, 10, 10, 230, 40, "Path to photo")) {
+        if (cvui::button(menuphotoframe, 10, 10, 230, 40, "Path to the photo")) {
+            std::cout << "Path to the photo!" << std::endl;
             cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
             std::string buf;
             std::cout << "Path to the photo: ";
@@ -181,7 +229,8 @@ void RecognitionFace::MenuPhoto() {
             Photo(buf);
             break;
         }
-        if (cvui::button(menuphotoframe, 10, 60, 230, 40, "Use dataset")) {
+        if (cvui::button(menuphotoframe, 10, 60, 230, 40, "Use photo database")) {
+            std::cout << "Use photo database!" << std::endl;
             cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
             for (auto const& buffPath : fs::directory_iterator(pathPhoto)) {
                 std::string buf = buffPath.path().string();
@@ -191,14 +240,15 @@ void RecognitionFace::MenuPhoto() {
             break;
         }
         if (cvui::button(menuphotoframe, 10, 110, 230, 40, "Exit")) {
+            std::cout << "Exit from " << MENU_PHOTO_WINDOW_NAME << "!" << std::endl;
             cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
             break;
         }
 
-        cvui::update();
+        cvui::update(MENU_PHOTO_WINDOW_NAME);
         cv::imshow(MENU_PHOTO_WINDOW_NAME, menuphotoframe);
         if (cv::waitKey(20) == 27) {
-            std::cout << "ESC. Exit from " << MENU_PHOTO_WINDOW_NAME << "!" << std::endl;
+            std::cout << "ESC. Close the" << MENU_PHOTO_WINDOW_NAME << "!" << std::endl;
             cv::destroyWindow(MENU_PHOTO_WINDOW_NAME);
             break;
         }
@@ -225,14 +275,61 @@ void RecognitionFace::Photo(std::string buf) {
         }
     }
     
-    cvui::update();
+    cvui::update(PHOTO_WINDOW_NAME);
     cvui::imshow(PHOTO_WINDOW_NAME, resizeframe);
     cv::waitKey(1000);
     cv::destroyWindow(PHOTO_WINDOW_NAME);
     return;
 }
-void RecognitionFace::AddPhoto() {
-    cv::VideoCapture videoCapture(0);
+void RecognitionFace::MenuAddPhoto() {
+    cv::namedWindow(MENU_ADD_WINDOW_NAME);
+    cvui::init(MENU_ADD_WINDOW_NAME);
+
+    while (true) {
+        menuaddphotoframe = cv::Scalar(49, 52, 49);
+        if (cvui::button(menuaddphotoframe, 10, 10, 230, 40, "Path to the photo")) {
+            std::cout << "Path to the photo!" << std::endl;
+            cv::destroyWindow(MENU_ADD_WINDOW_NAME);
+            std::string buf;
+            std::cout << "Path to the photo: ";
+            std::cin >> buf;
+            cv::VideoCapture videoCapture(buf);
+            AddPhoto(videoCapture);
+            break;
+        }
+        if (cvui::button(menuaddphotoframe, 10, 60, 230, 40, "Use photo database")) {
+            std::cout << "Use photo database!" << std::endl;
+            cv::destroyWindow(MENU_ADD_WINDOW_NAME);
+            for (auto const& buffPath : fs::directory_iterator(pathPhoto)) {
+                std::string buf = buffPath.path().string();
+                cv::VideoCapture videoCapture(buf);
+                AddPhoto(videoCapture);
+            }
+            break;
+        }
+        if (cvui::button(menuaddphotoframe, 10, 110, 230, 40, "Use camera")) {
+            std::cout << "Use camera!" << std::endl;
+            cv::destroyWindow(MENU_ADD_WINDOW_NAME);
+            cv::VideoCapture videoCapture(0);
+            AddPhoto(videoCapture);
+            break;
+        }
+        if (cvui::button(menuaddphotoframe, 10, 160, 230, 40, "Exit")) {
+            std::cout << "Exit from " << MENU_ADD_WINDOW_NAME << "!" << std::endl;
+            cv::destroyWindow(MENU_ADD_WINDOW_NAME);
+            break;
+        }
+
+        cvui::update(MENU_ADD_WINDOW_NAME);
+        cv::imshow(MENU_ADD_WINDOW_NAME, menuaddphotoframe);
+        if (cv::waitKey(20) == 27) {
+            std::cout << "ESC. Close the " << MENU_ADD_WINDOW_NAME << "!" << std::endl;
+            cv::destroyWindow(MENU_ADD_WINDOW_NAME);
+            break;
+        }
+    }
+}
+void RecognitionFace::AddPhoto(cv::VideoCapture videoCapture) {
     cv::Mat grayframe, bufframe;
 
     int num = 0;
@@ -264,7 +361,7 @@ void RecognitionFace::AddPhoto() {
             cv::waitKey(100);
         }
 
-        cvui::update();
+        cvui::update(ADD_WINDOW_NAME);
         cvui::imshow(ADD_WINDOW_NAME, cameraframe);
         if (num == 1) {
             std::cout << "Close the " << ADD_WINDOW_NAME << "!" << std::endl;
@@ -278,7 +375,7 @@ void RecognitionFace::AddPhoto() {
         }
     }
 }
-void RecognitionFace::TrainnerLBP() {
+void RecognitionFace::TrainnerLBPH() {
     int buf;
     std::vector<int> faceIds;
     std::vector<cv::Mat> faceSamples;
@@ -305,7 +402,7 @@ void RecognitionFace::TrainnerLBP() {
 int main() {
     RecognitionFace recognitionface;
     recognitionface.cascadeClassifier.load("xml/haarcascade_frontalface_default.xml");
-    recognitionface.TrainnerLBP();
+    recognitionface.TrainnerLBPH();
     recognitionface.GUI();
     return 0;
 }
